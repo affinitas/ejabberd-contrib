@@ -1,0 +1,5 @@
+author: "Affinitas"
+category: "http requests"
+summary: "It sends post requests"
+home: "https://github.com/affinitas/ejabberd-contrib/tree/master/"
+url: "https://github.com/affinitas/ejabberd-contrib/archive/master.zip"
