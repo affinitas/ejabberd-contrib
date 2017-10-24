@@ -78,7 +78,7 @@ fetch_inbox(Host, User, DB_Type) ->
 
 makeQuery(User) ->
   [<<"select bare_peer, txt, id, timestamp from (
-select bare_peer, txt, timestamp, id, rank() over (partition by bare_peer order by timestamp desc)
+select bare_peer, txt, timestamp, id, created_at, rank() over (partition by bare_peer order by timestamp desc)
 FROM archive WHERE username='">> , User , <<"' ) yo
 WHERE rank=1 order by created_at desc">>].
 
