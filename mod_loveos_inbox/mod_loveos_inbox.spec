@@ -1,0 +1,5 @@
+author: "Igor Dultsev <igor.dultsev@affinitas.de>"
+category: "command"
+summary: "Parse inbox stanzas to return the most recent LoveOS Inbox"
+home: "https://github.com/affinitas/ejabberd-contrib/tree/beta/"
+url: "https://github.com/affinitas/ejabberd-contrib/archive/beta.zip"
