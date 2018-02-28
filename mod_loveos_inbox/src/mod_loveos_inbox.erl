@@ -65,18 +65,21 @@ ensure_sql(_Host, DbType) -> erlang:error(iolist_to_binary(io_lib:format("Unsupp
 
 
 query_messages(User) ->
-  [<<"select distinct on (bare_peer) bare_peer, txt, timestamp FROM archive WHERE username='">>, User, <<"'order by bare_peer, created_at desc">>].
+  [<<"select distinct on (bare_peer) bare_peer, txt, timestamp, l.display_name, l.profile_picture FROM archive 
+      join loveos_profiles_v1 l on l.user_id = left(archive.bare_peer, strpos(archive.bare_peer, '@') - 1)
+      WHERE username='">>, User, <<"'
+      order by bare_peer, created_at desc;">>].
 
-make_inbox_element(Jid, Message, Timestamp) ->
+make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture) ->
     Converted = jlib:string_to_jid(Jid),
     #inbox_item{ 
       jid = Converted,
-      name = <<"Unknown name">>,
-      photo = <<"https://picture-storage.beta.loveos.io/pictures/chattery/1aee6403-5336-4091-9567-f1a9186dbfcd/profile/8b3f58bb-cf75-416d-8d9c-fc658dc2c604.jpeg">>,
+      name = DisplayName,
+      photo = ProfilePicture,
       message = Message,
       timestamp = Timestamp,
       read = <<"yes">>,
-      direction = <<"from">>
+      direction = <<"unknown">>
     }.
 
 get_inbox(Host, User) ->
@@ -84,7 +87,7 @@ get_inbox(Host, User) ->
   QueryResult = ejabberd_sql:sql_query(Host, Query),
   case QueryResult of
     {selected, _Columns, Rows} when is_list(Rows) ->
-      [ make_inbox_element(Jid, Message, Timestamp) || [Jid, Message, Timestamp] <- Rows];
+      [ make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture) || [Jid, Message, Timestamp, DisplayName, ProfilePicture] <- Rows];
       % ?INFO_MSG("QR: ~p ", [Elements]),
       % Elements;
     _ -> []
