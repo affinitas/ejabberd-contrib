@@ -20,26 +20,26 @@ tags() ->
     [{<<"query">>, <<"jabber:iq:inbox">>},
      {<<"item">>, <<"jabber:iq:inbox">>}].
 
-do_encode({inbox_item, _, _, _, _, _, _} = Item,
+do_encode({inbox_item, _, _, _, _, _, _, _} = Item,
 	  TopXMLNS) ->
     encode_inbox_item(Item, TopXMLNS);
 do_encode({inbox_query, _} = Query, TopXMLNS) ->
     encode_inbox_query(Query, TopXMLNS).
 
-do_get_name({inbox_item, _, _, _, _, _, _}) ->
+do_get_name({inbox_item, _, _, _, _, _, _, _}) ->
     <<"item">>;
 do_get_name({inbox_query, _}) -> <<"query">>.
 
-do_get_ns({inbox_item, _, _, _, _, _, _}) ->
+do_get_ns({inbox_item, _, _, _, _, _, _, _}) ->
     <<"jabber:iq:inbox">>;
 do_get_ns({inbox_query, _}) -> <<"jabber:iq:inbox">>.
 
-pp(inbox_item, 6) ->
-    [jid, name, photo, lastmsg, read, messaged_at];
+pp(inbox_item, 7) ->
+    [jid, name, photo, message, timestamp, read, direction];
 pp(inbox_query, 1) -> [items];
 pp(_, _) -> no.
 
-records() -> [{inbox_item, 6}, {inbox_query, 1}].
+records() -> [{inbox_item, 7}, {inbox_query, 1}].
 
 decode_inbox_query(__TopXMLNS, __Opts,
 		   {xmlel, <<"query">>, _attrs, _els}) ->
@@ -85,72 +85,80 @@ encode_inbox_query({inbox_query, Items}, __TopXMLNS) ->
 
 decode_inbox_item(__TopXMLNS, __Opts,
 		  {xmlel, <<"item">>, _attrs, _els}) ->
-    {Jid, Name, Photo, Lastmsg, Messaged_at, Read} =
+    {Jid, Name, Photo, Message, Timestamp, Read,
+     Direction} =
 	decode_inbox_item_attrs(__TopXMLNS, _attrs, undefined,
 				undefined, undefined, undefined, undefined,
-				undefined),
-    {inbox_item, Jid, Name, Photo, Lastmsg, Read,
-     Messaged_at}.
+				undefined, undefined),
+    {inbox_item, Jid, Name, Photo, Message, Timestamp, Read,
+     Direction}.
 
 decode_inbox_item_attrs(__TopXMLNS,
 			[{<<"jid">>, _val} | _attrs], _Jid, Name, Photo,
-			Lastmsg, Messaged_at, Read) ->
+			Message, Timestamp, Read, Direction) ->
     decode_inbox_item_attrs(__TopXMLNS, _attrs, _val, Name,
-			    Photo, Lastmsg, Messaged_at, Read);
+			    Photo, Message, Timestamp, Read, Direction);
 decode_inbox_item_attrs(__TopXMLNS,
 			[{<<"name">>, _val} | _attrs], Jid, _Name, Photo,
-			Lastmsg, Messaged_at, Read) ->
+			Message, Timestamp, Read, Direction) ->
     decode_inbox_item_attrs(__TopXMLNS, _attrs, Jid, _val,
-			    Photo, Lastmsg, Messaged_at, Read);
+			    Photo, Message, Timestamp, Read, Direction);
 decode_inbox_item_attrs(__TopXMLNS,
 			[{<<"photo">>, _val} | _attrs], Jid, Name, _Photo,
-			Lastmsg, Messaged_at, Read) ->
+			Message, Timestamp, Read, Direction) ->
     decode_inbox_item_attrs(__TopXMLNS, _attrs, Jid, Name,
-			    _val, Lastmsg, Messaged_at, Read);
+			    _val, Message, Timestamp, Read, Direction);
 decode_inbox_item_attrs(__TopXMLNS,
-			[{<<"lastmsg">>, _val} | _attrs], Jid, Name, Photo,
-			_Lastmsg, Messaged_at, Read) ->
+			[{<<"message">>, _val} | _attrs], Jid, Name, Photo,
+			_Message, Timestamp, Read, Direction) ->
     decode_inbox_item_attrs(__TopXMLNS, _attrs, Jid, Name,
-			    Photo, _val, Messaged_at, Read);
+			    Photo, _val, Timestamp, Read, Direction);
 decode_inbox_item_attrs(__TopXMLNS,
-			[{<<"messaged_at">>, _val} | _attrs], Jid, Name, Photo,
-			Lastmsg, _Messaged_at, Read) ->
+			[{<<"timestamp">>, _val} | _attrs], Jid, Name, Photo,
+			Message, _Timestamp, Read, Direction) ->
     decode_inbox_item_attrs(__TopXMLNS, _attrs, Jid, Name,
-			    Photo, Lastmsg, _val, Read);
+			    Photo, Message, _val, Read, Direction);
 decode_inbox_item_attrs(__TopXMLNS,
 			[{<<"read">>, _val} | _attrs], Jid, Name, Photo,
-			Lastmsg, Messaged_at, _Read) ->
+			Message, Timestamp, _Read, Direction) ->
     decode_inbox_item_attrs(__TopXMLNS, _attrs, Jid, Name,
-			    Photo, Lastmsg, Messaged_at, _val);
+			    Photo, Message, Timestamp, _val, Direction);
+decode_inbox_item_attrs(__TopXMLNS,
+			[{<<"direction">>, _val} | _attrs], Jid, Name, Photo,
+			Message, Timestamp, Read, _Direction) ->
+    decode_inbox_item_attrs(__TopXMLNS, _attrs, Jid, Name,
+			    Photo, Message, Timestamp, Read, _val);
 decode_inbox_item_attrs(__TopXMLNS, [_ | _attrs], Jid,
-			Name, Photo, Lastmsg, Messaged_at, Read) ->
+			Name, Photo, Message, Timestamp, Read, Direction) ->
     decode_inbox_item_attrs(__TopXMLNS, _attrs, Jid, Name,
-			    Photo, Lastmsg, Messaged_at, Read);
+			    Photo, Message, Timestamp, Read, Direction);
 decode_inbox_item_attrs(__TopXMLNS, [], Jid, Name,
-			Photo, Lastmsg, Messaged_at, Read) ->
+			Photo, Message, Timestamp, Read, Direction) ->
     {decode_inbox_item_attr_jid(__TopXMLNS, Jid),
      decode_inbox_item_attr_name(__TopXMLNS, Name),
      decode_inbox_item_attr_photo(__TopXMLNS, Photo),
-     decode_inbox_item_attr_lastmsg(__TopXMLNS, Lastmsg),
-     decode_inbox_item_attr_messaged_at(__TopXMLNS,
-					Messaged_at),
-     decode_inbox_item_attr_read(__TopXMLNS, Read)}.
+     decode_inbox_item_attr_message(__TopXMLNS, Message),
+     decode_inbox_item_attr_timestamp(__TopXMLNS, Timestamp),
+     decode_inbox_item_attr_read(__TopXMLNS, Read),
+     decode_inbox_item_attr_direction(__TopXMLNS,
+				      Direction)}.
 
 encode_inbox_item({inbox_item, Jid, Name, Photo,
-		   Lastmsg, Read, Messaged_at},
+		   Message, Timestamp, Read, Direction},
 		  __TopXMLNS) ->
     __NewTopXMLNS =
 	xmpp_codec:choose_top_xmlns(<<"jabber:iq:inbox">>, [],
 				    __TopXMLNS),
     _els = [],
-    _attrs = encode_inbox_item_attr_read(Read,
-					 encode_inbox_item_attr_messaged_at(Messaged_at,
-									    encode_inbox_item_attr_lastmsg(Lastmsg,
-													   encode_inbox_item_attr_photo(Photo,
-																	encode_inbox_item_attr_name(Name,
-																				    encode_inbox_item_attr_jid(Jid,
-																							       xmpp_codec:enc_xmlns_attrs(__NewTopXMLNS,
-																											  __TopXMLNS))))))),
+    _attrs = encode_inbox_item_attr_direction(Direction,
+					      encode_inbox_item_attr_read(Read,
+									  encode_inbox_item_attr_timestamp(Timestamp,
+													   encode_inbox_item_attr_message(Message,
+																	  encode_inbox_item_attr_photo(Photo,
+																				       encode_inbox_item_attr_name(Name,
+																								   encode_inbox_item_attr_jid(Jid,
+																											      xmpp_codec:enc_xmlns_attrs(__NewTopXMLNS,
+																															 __TopXMLNS)))))))),
     {xmlel, <<"item">>, _attrs, _els}.
 
 decode_inbox_item_attr_jid(__TopXMLNS, undefined) ->
@@ -183,24 +191,24 @@ encode_inbox_item_attr_photo(<<>>, _acc) -> _acc;
 encode_inbox_item_attr_photo(_val, _acc) ->
     [{<<"photo">>, _val} | _acc].
 
-decode_inbox_item_attr_lastmsg(__TopXMLNS, undefined) ->
+decode_inbox_item_attr_message(__TopXMLNS, undefined) ->
     <<>>;
-decode_inbox_item_attr_lastmsg(__TopXMLNS, _val) ->
+decode_inbox_item_attr_message(__TopXMLNS, _val) ->
     _val.
 
-encode_inbox_item_attr_lastmsg(<<>>, _acc) -> _acc;
-encode_inbox_item_attr_lastmsg(_val, _acc) ->
-    [{<<"lastmsg">>, _val} | _acc].
+encode_inbox_item_attr_message(<<>>, _acc) -> _acc;
+encode_inbox_item_attr_message(_val, _acc) ->
+    [{<<"message">>, _val} | _acc].
 
-decode_inbox_item_attr_messaged_at(__TopXMLNS,
-				   undefined) ->
+decode_inbox_item_attr_timestamp(__TopXMLNS,
+				 undefined) ->
     <<>>;
-decode_inbox_item_attr_messaged_at(__TopXMLNS, _val) ->
+decode_inbox_item_attr_timestamp(__TopXMLNS, _val) ->
     _val.
 
-encode_inbox_item_attr_messaged_at(<<>>, _acc) -> _acc;
-encode_inbox_item_attr_messaged_at(_val, _acc) ->
-    [{<<"messaged_at">>, _val} | _acc].
+encode_inbox_item_attr_timestamp(<<>>, _acc) -> _acc;
+encode_inbox_item_attr_timestamp(_val, _acc) ->
+    [{<<"timestamp">>, _val} | _acc].
 
 decode_inbox_item_attr_read(__TopXMLNS, undefined) ->
     <<>>;
@@ -209,3 +217,13 @@ decode_inbox_item_attr_read(__TopXMLNS, _val) -> _val.
 encode_inbox_item_attr_read(<<>>, _acc) -> _acc;
 encode_inbox_item_attr_read(_val, _acc) ->
     [{<<"read">>, _val} | _acc].
+
+decode_inbox_item_attr_direction(__TopXMLNS,
+				 undefined) ->
+    <<>>;
+decode_inbox_item_attr_direction(__TopXMLNS, _val) ->
+    _val.
+
+encode_inbox_item_attr_direction(<<>>, _acc) -> _acc;
+encode_inbox_item_attr_direction(_val, _acc) ->
+    [{<<"direction">>, _val} | _acc].

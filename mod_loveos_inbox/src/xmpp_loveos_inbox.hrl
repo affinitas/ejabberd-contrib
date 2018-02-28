@@ -4,9 +4,10 @@
 -record(inbox_item, {jid :: jid:jid(),
                      name = <<>> :: binary(),
                      photo = <<>> :: binary(),
-                     lastmsg = <<>> :: binary(),
+                     message = <<>> :: binary(),
+                     timestamp = <<>> :: binary(),
                      read = <<>> :: binary(),
-                     messaged_at = <<>> :: binary()}).
+                     direction = <<>> :: binary()}).
 -type inbox_item() :: #inbox_item{}.
 
 -record(inbox_query, {items = [] :: [#inbox_item{}]}).

@@ -2,14 +2,15 @@
       #elem{name = <<"item">>,
             xmlns = <<"jabber:iq:inbox">>,
             module = xmpp_loveos_inbox,
-            result = {inbox_item, '$jid', '$name', '$photo', '$lastmsg', '$read', '$messaged_at' },
+            result = {inbox_item, '$jid', '$name', '$photo', '$message', '$timestamp', '$read', '$direction' },
             attrs = [
-                  #attr{name = <<"jid">>}, 
+                  #attr{name = <<"jid">>, required = true, dec = {jid, decode, []}, enc = {jid, encode, []}},
                   #attr{name = <<"name">>}, 
                   #attr{name = <<"photo">>},
-                  #attr{name = <<"lastmsg">>},
-                  #attr{name = <<"messaged_at">>},
-                  #attr{name = <<"read">>}
+                  #attr{name = <<"message">>},
+                  #attr{name = <<"timestamp">>},
+                  #attr{name = <<"read">>},
+                  #attr{name = <<"direction">>}
             ]}).
 
 -xml(inbox_query,

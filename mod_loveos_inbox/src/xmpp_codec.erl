@@ -1413,8 +1413,6 @@ get_mod({inbox_query, _}) -> xmpp_loveos_inbox;
 get_mod({disco_info, _, _, _, _}) -> xep0030;
 get_mod({sm_a, _, _}) -> xep0198;
 get_mod({oob_x, _, _, _}) -> xep0066;
-get_mod({inbox_item, _, _, _, _, _, _}) ->
-    xmpp_loveos_inbox;
 get_mod({privacy_query, _, _, _}) -> xep0016;
 get_mod({block, _}) -> xep0191;
 get_mod({vcard_label, _, _, _, _, _, _, _, _}) ->
@@ -1489,6 +1487,8 @@ get_mod({addresses, _}) -> xep0033;
 get_mod({adhoc_command, _, _, _, _, _, _, _, _}) ->
     xep0050;
 get_mod({media, _, _, _}) -> xep0221;
+get_mod({inbox_item, _, _, _, _, _, _, _}) ->
+    xmpp_loveos_inbox;
 get_mod({identity, _, _, _, _}) -> xep0030;
 get_mod({redirect, _}) -> rfc6120;
 get_mod({muc_history, _, _, _, _}) -> xep0045;

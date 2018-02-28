@@ -69,14 +69,14 @@ query_messages(User) ->
 
 make_inbox_element(Jid, Message, Timestamp) ->
     Converted = jlib:string_to_jid(Jid),
-    ?INFO_MSG("JID: ~p ~p ", [Jid, Converted]),
     #inbox_item{ 
       jid = Converted,
       name = <<"Unknown name">>,
       photo = <<"https://picture-storage.beta.loveos.io/pictures/chattery/1aee6403-5336-4091-9567-f1a9186dbfcd/profile/8b3f58bb-cf75-416d-8d9c-fc658dc2c604.jpeg">>,
-      lastmsg = Message,
-      messaged_at = Timestamp,
-      read = <<"yes">>
+      message = Message,
+      timestamp = Timestamp,
+      read = <<"yes">>,
+      direction = <<"from">>
     }.
 
 get_inbox(Host, User) ->
