@@ -1,0 +1,5 @@
+author: "Igor Dultsev <igor.dultsev@affinitas.de>"
+category: "interceptor"
+summary: "uses information from kafka excluded topic to not send messages to blocked/reported users"
+home: "https://github.com/affinitas/ejabberd-contrib/tree/beta/"
+url: "https://github.com/affinitas/ejabberd-contrib/archive/beta.zip"
