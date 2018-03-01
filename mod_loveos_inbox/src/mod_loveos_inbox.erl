@@ -65,21 +65,34 @@ ensure_sql(_Host, DbType) -> erlang:error(iolist_to_binary(io_lib:format("Unsupp
 
 
 query_messages(User) ->
-  [<<"select distinct on (bare_peer) bare_peer, txt, timestamp, l.display_name, l.profile_picture FROM archive 
+  [<<"select distinct on (bare_peer) 
+        bare_peer, 
+        txt, 
+        timestamp, 
+        l.display_name, 
+        l.profile_picture,
+        unnest(xpath('./@id', xmlparse(document xml)))::text message_id
+      FROM archive 
       join loveos_profiles_v1 l on l.user_id = left(archive.bare_peer, strpos(archive.bare_peer, '@') - 1)
       WHERE username='">>, User, <<"'
+      AND xml not like '%<received xmlns%'
       order by bare_peer, created_at desc;">>].
 
-make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture) ->
+make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture, MessageId) ->
     Converted = jlib:string_to_jid(Jid),
     #inbox_item{ 
-      jid = Converted,
-      name = DisplayName,
-      photo = ProfilePicture,
-      message = Message,
-      timestamp = Timestamp,
-      read = <<"yes">>,
-      direction = <<"unknown">>
+      user = #inbox_user{
+        jid = Converted,
+        display_name = DisplayName,  
+        picture_url = ProfilePicture
+      },
+      last_message = #inbox_last_message{
+        id = MessageId,
+        text = Message,
+        direction = <<"unknown">>,
+        timestamp = Timestamp,
+        read = <<"true">>
+      }
     }.
 
 get_inbox(Host, User) ->
@@ -87,7 +100,7 @@ get_inbox(Host, User) ->
   QueryResult = ejabberd_sql:sql_query(Host, Query),
   case QueryResult of
     {selected, _Columns, Rows} when is_list(Rows) ->
-      [ make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture) || [Jid, Message, Timestamp, DisplayName, ProfilePicture] <- Rows];
+      [ make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture, MessageId) || [Jid, Message, Timestamp, DisplayName, ProfilePicture, MessageId] <- Rows ];
       % ?INFO_MSG("QR: ~p ", [Elements]),
       % Elements;
     _ -> []
