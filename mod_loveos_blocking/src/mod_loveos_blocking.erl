@@ -72,7 +72,7 @@ query_block(User, Excluded) ->
 filter_packet(drop) -> drop;
 
 filter_packet(#message{ from = #jid{ lserver = Host, luser = User }, to = #jid{ luser = Excluded}} = Input) ->
-  ?INFO_MSG("Filtering <<<< ~p -> ~p >>> ~n", [User, Excluded]),
+  % ?INFO_MSG("Filtering <<<< ~p -> ~p >>> ~n", [User, Excluded]),
   QResult = ejabberd_sql:sql_query(Host, query_block(User, Excluded)),
 
   case QResult of
