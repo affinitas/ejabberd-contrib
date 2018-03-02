@@ -18,13 +18,17 @@
 -include("mod_mam.hrl").
 -include("xmpp_loveos_inbox.hrl").
 
+-define(INBOX_TABLE, <<"loveos_inbox_v1">>).
+
 -export([start/2,
    stop/1,
    reload/3,
    depends/2,
    get_inbox/2,
    ensure_sql/2,
-   process_iq/1
+   process_iq/1,
+   user_send_packet/1,
+   user_receive_packet/1
 ]).
 
 %%% Module start/stop
@@ -32,12 +36,15 @@
 start(Host, Opts) ->
   IQDisc = gen_mod:get_opt(iqdisc, Opts, fun gen_iq_handler:check_type/1, one_queue),             %% IQDisc is required for module to IQ handler to work
   gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_INBOX, ?MODULE, process_iq, IQDisc),
+  ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 85),
+  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, user_receive_packet, 85),
   xmpp:register_codec(xmpp_loveos_inbox),
   ensure_sql(Host).
 
 stop(Host) ->
   gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_INBOX),
   gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_INBOX),
+  ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 85),
   xmpp:unregister_codec(xmpp_loveos_inbox),
   ok.
 
@@ -75,7 +82,7 @@ query_messages(User) ->
       FROM archive 
       join loveos_profiles_v1 l on l.user_id = left(archive.bare_peer, strpos(archive.bare_peer, '@') - 1)
       WHERE username='">>, User, <<"'
-      AND xml not like '%<received xmlns%'
+      AND xml not like '%<3received xmlns%'
       order by bare_peer, created_at desc;">>].
 
 make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture, MessageId) ->
@@ -106,6 +113,72 @@ get_inbox(Host, User) ->
     _ -> []
   end.
 
-
 process_iq(#iq{type = get, from = #jid{luser = User, lserver = Host}} = IQ) ->
-  xmpp:make_iq_result(IQ, #inbox_query{ items = get_inbox(Host, User)}).
+    xmpp:make_iq_result(IQ, #inbox_query{ items = get_inbox(Host, User)}).
+    
+
+% CREATE TABLE loveos_inbox_v1 (
+%   user_id text not null,
+%   peer_jid text,
+%   message text,
+%   direction char, -- F / T because boolean looks bad here
+%   read boolean
+% );
+
+process_message(_, _, _, <<"">>, _) -> 
+  ok;
+process_message(Id, #jid{ luser = User, lserver = Server }, PeerJid, Message, Direction) ->
+  Peer = jlib:jid_to_string(jlib:jid_remove_resource(PeerJid)),
+  Query = [
+    <<"insert into ">>, ?INBOX_TABLE, <<" (id, username, peer, message, direction, read) ">>,
+    <<"values ('">>, Id, <<"','">>, User, <<"','">>, Peer, <<"','">>, Message, <<"','">>, Direction, <<"', false)">>,
+    <<" on conflict on constraint c_loveos_inbox_v1_user_peer do update set ">>,
+    <<"id = '">>, Id, <<"', ">>,
+    <<"message = '">>, Message, <<"', ">>,
+    <<"direction = '">>, Direction, <<"', ">>,
+    <<"read = false">>
+  ],
+
+  case ejabberd_sql:sql_query(Server, Query) of
+    {updated, _} -> ok;
+    Err -> 
+      ?INFO_MSG("Error upserting: ~p", [Err]),
+      Err
+  end.
+
+process_update_read(#receipt_response{id = Id}, #jid{ lserver = Server }) -> 
+  Query = [
+    <<"update ">>, ?INBOX_TABLE, <<" set read = true where id = '">>,
+    Id,
+    <<"'">>
+  ],
+  case ejabberd_sql:sql_query(Server, Query) of
+    {updated, _} -> ok;
+    Err -> 
+      ?INFO_MSG("Error upserting: ~p", [Err]),
+      Err
+  end.
+
+process_message(#message{id = Id, from = From, to = To, body = Body } = Message, Direction) ->
+  case xmpp:has_subtag(Message, #receipt_response{}) of
+    true ->
+      process_update_read(xmpp:get_subtag(Message, #receipt_response{}), From);
+    false -> 
+      BodyText = xmpp:get_text(Body),
+      case Direction of 
+        <<"incoming">> -> process_message(Id, To, From, BodyText, <<"I">>);
+        <<"outgoing">> -> process_message(Id, From, To, BodyText, <<"O">>)
+      end
+  end.
+
+process_packet({ #message{} = Message, _C2SState} = Input, Direction) ->
+  process_message(Message, Direction),
+  Input;
+process_packet(Input, _Direction) ->
+  Input.
+
+user_send_packet(Input) ->
+    process_packet(Input, <<"outgoing">>).
+  user_receive_packet(Input) ->
+    process_packet(Input, <<"incoming">>).
+      
