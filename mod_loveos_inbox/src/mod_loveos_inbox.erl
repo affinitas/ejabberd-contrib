@@ -71,34 +71,24 @@ ensure_sql(_Host, DbType) -> erlang:error(iolist_to_binary(io_lib:format("Unsupp
 % Process the following iq: <iq from="jid@server" type="get"><query xmlns="jabber:iq:inbox" /></iq>
 
 
-query_messages(User) ->
-  [<<"select distinct on (bare_peer) 
-        bare_peer, 
-        txt, 
-        timestamp, 
-        l.display_name, 
-        l.profile_picture,
-        unnest(xpath('./@id', xmlparse(document xml)))::text message_id
-      FROM archive 
-      join loveos_profiles_v1 l on l.user_id = left(archive.bare_peer, strpos(archive.bare_peer, '@') - 1)
-      WHERE username='">>, User, <<"'
-      AND xml not like '%<3received xmlns%'
-      order by bare_peer, created_at desc;">>].
+query_messages(User) -> 
+  [<<" select i.id, i.peer_user, i.peer_server, i.message, i.direction, i.read, floor(extract(epoch from i.timestamp) * 1000) as timestamp, p.display_name, p.profile_picture from loveos_inbox_v1 i ">>,
+   <<" join loveos_profiles_v1 p on p.user_id = i.peer_user left join loveos_excluded_v1 e on i.username=e.user_id ">>,
+   <<" where (e.excluded_users::jsonb ? peer_user) != true and username = '">>, User, <<"'">>].
 
-make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture, MessageId) ->
-    Converted = jlib:string_to_jid(Jid),
+make_inbox_element(MessageId, Jid, Message, Direction, ReadStatus, Timestamp, DisplayName, ProfilePicture) ->
     #inbox_item{ 
       user = #inbox_user{
-        jid = Converted,
+        jid = Jid,
         display_name = DisplayName,  
         picture_url = ProfilePicture
       },
       last_message = #inbox_last_message{
         id = MessageId,
         text = Message,
-        direction = <<"unknown">>,
+        direction = Direction,
         timestamp = Timestamp,
-        read = <<"true">>
+        read = ReadStatus
       }
     }.
 
@@ -107,7 +97,16 @@ get_inbox(Host, User) ->
   QueryResult = ejabberd_sql:sql_query(Host, Query),
   case QueryResult of
     {selected, _Columns, Rows} when is_list(Rows) ->
-      [ make_inbox_element(Jid, Message, Timestamp, DisplayName, ProfilePicture, MessageId) || [Jid, Message, Timestamp, DisplayName, ProfilePicture, MessageId] <- Rows ];
+      [ make_inbox_element(
+        MessageId, 
+        jid:make(PeerUser, PeerServer), 
+        Message, 
+        case Direction of <<"I">> -> <<"incoming">>; <<"O">> -> <<"outgoing">> end, 
+        case ReadStatus of <<"t">> -> <<"true">>; <<"f">> -> <<"false">> end, 
+        Timestamp, 
+        DisplayName, 
+        ProfilePicture
+      ) || [MessageId, PeerUser, PeerServer, Message, Direction, ReadStatus, Timestamp, DisplayName, ProfilePicture ] <- Rows ];
       % ?INFO_MSG("QR: ~p ", [Elements]),
       % Elements;
     _ -> []
@@ -117,21 +116,13 @@ process_iq(#iq{type = get, from = #jid{luser = User, lserver = Host}} = IQ) ->
     xmpp:make_iq_result(IQ, #inbox_query{ items = get_inbox(Host, User)}).
     
 
-% CREATE TABLE loveos_inbox_v1 (
-%   user_id text not null,
-%   peer_jid text,
-%   message text,
-%   direction char, -- F / T because boolean looks bad here
-%   read boolean
-% );
-
 process_message(_, _, _, <<"">>, _) -> 
   ok;
-process_message(Id, #jid{ luser = User, lserver = Server }, PeerJid, Message, Direction) ->
-  Peer = jlib:jid_to_string(jlib:jid_remove_resource(PeerJid)),
+process_message(Id, #jid{ luser = CurrentUser, lserver = CurrentServer } = _Current, #jid{ luser = PeerUser, lserver = PeerServer } = _Peer, Message, Direction) ->
+  % Peer = jlib:jid_to_string(jlib:jid_remove_resource(PeerJid)),
   Query = [
-    <<"insert into ">>, ?INBOX_TABLE, <<" (id, username, peer, message, direction, read) ">>,
-    <<"values ('">>, Id, <<"','">>, User, <<"','">>, Peer, <<"','">>, Message, <<"','">>, Direction, <<"', false)">>,
+    <<"insert into ">>, ?INBOX_TABLE, <<" (id, username, peer_user, peer_server, message, direction, read) ">>,
+    <<"values ('">>, Id, <<"','">>, CurrentUser, <<"','">>, PeerUser, <<"','">>, PeerServer, <<"','">>, Message, <<"','">>, Direction, <<"', false)">>,
     <<" on conflict on constraint c_loveos_inbox_v1_user_peer do update set ">>,
     <<"id = '">>, Id, <<"', ">>,
     <<"message = '">>, Message, <<"', ">>,
@@ -139,7 +130,7 @@ process_message(Id, #jid{ luser = User, lserver = Server }, PeerJid, Message, Di
     <<"read = false">>
   ],
 
-  case ejabberd_sql:sql_query(Server, Query) of
+  case ejabberd_sql:sql_query(CurrentServer, Query) of
     {updated, _} -> ok;
     Err -> 
       ?INFO_MSG("Error upserting: ~p", [Err]),
@@ -181,4 +172,3 @@ user_send_packet(Input) ->
     process_packet(Input, <<"outgoing">>).
   user_receive_packet(Input) ->
     process_packet(Input, <<"incoming">>).
-      
