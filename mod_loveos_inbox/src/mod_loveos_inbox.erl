@@ -116,6 +116,8 @@ process_iq(#iq{type = get, from = #jid{luser = User, lserver = Host}} = IQ) ->
     xmpp:make_iq_result(IQ, #inbox_query{ items = get_inbox(Host, User)}).
     
 
+%%% Process messages
+
 process_message(_, _, _, <<"">>, _) -> 
   ok;
 process_message(Id, #jid{ luser = CurrentUser, lserver = CurrentServer } = _Current, #jid{ luser = PeerUser, lserver = PeerServer } = _Peer, Message, Direction) ->
