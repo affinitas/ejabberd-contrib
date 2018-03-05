@@ -169,6 +169,6 @@ process_packet(Input, _Direction) ->
   Input.
 
 user_send_packet(Input) ->
-    process_packet(Input, <<"outgoing">>).
-  user_receive_packet(Input) ->
-    process_packet(Input, <<"incoming">>).
+  process_packet(Input, <<"outgoing">>).
+user_receive_packet(Input) ->
+  process_packet(Input, <<"incoming">>).
