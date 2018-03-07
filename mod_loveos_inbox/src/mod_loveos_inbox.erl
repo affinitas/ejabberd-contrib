@@ -74,7 +74,7 @@ ensure_sql(_Host, DbType) -> erlang:error(iolist_to_binary(io_lib:format("Unsupp
 query_messages(User) -> 
   [<<" select i.id, i.peer_user, i.peer_server, i.message, i.direction, i.read, floor(extract(epoch from i.timestamp) * 1000) as timestamp, p.display_name, p.profile_picture from loveos_inbox_v1 i ">>,
    <<" join loveos_profiles_v1 p on p.user_id = i.peer_user left join loveos_excluded_v1 e on i.username=e.user_id ">>,
-   <<" where (e.excluded_users::jsonb ? peer_user) != true and username = '">>, User, <<"'">>].
+   <<" where (e.excluded_users is null or (e.excluded_users::jsonb ? peer_user) != true) and username = '">>, User, <<"'">>].
 
 make_inbox_element(MessageId, Jid, Message, Direction, ReadStatus, Timestamp, DisplayName, ProfilePicture) ->
     #inbox_item{ 
