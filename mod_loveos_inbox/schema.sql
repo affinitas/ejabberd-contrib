@@ -6,7 +6,7 @@ CREATE TABLE loveos_inbox_v1 (
   message text,
   direction char not null,
   read boolean not null,
-  timestamp timestamp default now()
+  timestamp timestamp with time zone default now()
 );
 
 CREATE INDEX i_loveos_inbox_v1 ON loveos_inbox_v1 using btree (username);
