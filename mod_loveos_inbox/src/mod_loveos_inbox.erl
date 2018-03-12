@@ -64,14 +64,23 @@ reload(Host, NewOpts, OldOpts) ->
     end.
 
 % This module can only be run on SQL-type DBs
+% Also we are checking that tables required for this module are available
 
 ensure_sql(Host) -> ensure_sql(Host, gen_mod:db_type(Host, mod_mam)).
-ensure_sql(_Host, sql) -> ok;
+ensure_sql(Host, sql) -> 
+  check_table_exists(Host, ?INBOX_TABLE),
+  check_table_exists(Host, ?PROFILES_TABLE),
+  check_table_exists(Host, ?EXCLUDED_TABLE);
 ensure_sql(_Host, DbType) -> erlang:error(iolist_to_binary(io_lib:format("Unsupported backend: ~p", [DbType]))).
 
+check_table_exists(Host, Table) ->
+  SqlResult = ejabberd_sql:sql_query(Host, [<<"SELECT to_regclass('">>, Table, <<"')">>]),
+  case SqlResult of
+    {selected, _Columns, [[Table]]} -> ok;
+    _ -> erlang:error(iolist_to_binary(io_lib:format("Table doesn't exist: ~p", [Table])))
+  end.
 
 % Process the following iq: <iq from="jid@server" type="get"><query xmlns="jabber:iq:inbox" /></iq>
-
 
 query_messages(User) -> 
   [<<" select i.id, i.peer_user, i.peer_server, i.message, i.direction, i.read, ">>,
@@ -113,7 +122,9 @@ get_inbox(Host, User) ->
         DisplayName, 
         ProfilePicture
       ) || [MessageId, PeerUser, PeerServer, Message, Direction, ReadStatus, Timestamp, DisplayName, ProfilePicture ] <- Rows ];
-    _ -> []
+    Err -> 
+      ?ERROR_MSG("Error getting inbox: ~p", [Err]),
+      Err
   end.
 
 process_iq(#iq{type = get, from = #jid{luser = User, lserver = Host}} = IQ) ->
@@ -140,7 +151,7 @@ process_message(Id, #jid{ luser = CurrentUser, lserver = CurrentServer } = _Curr
   case ejabberd_sql:sql_query(CurrentServer, Query) of
     {updated, _} -> ok;
     Err -> 
-      ?INFO_MSG("Error upserting: ~p", [Err]),
+      ?ERROR_MSG("Error upserting: ~p", [Err]),
       Err
   end.
 
@@ -153,7 +164,7 @@ process_update_read(#receipt_response{id = Id}, #jid{ lserver = Server }) ->
   case ejabberd_sql:sql_query(Server, Query) of
     {updated, _} -> ok;
     Err -> 
-      ?INFO_MSG("Error upserting: ~p", [Err]),
+      ?ERROR_MSG("Error upserting: ~p", [Err]),
       Err
   end.
 
