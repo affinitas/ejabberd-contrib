@@ -84,7 +84,7 @@ check_table_exists(Host, Table) ->
 
 query_messages(User) -> 
   [<<" select i.id, i.peer_user, i.peer_server, i.message, i.direction, i.read, ">>,
-   <<" to_char(i.timestamp, 'YYYY-MM-DD\"T\"HH24:MI:SS:MS\"Z\"') as timestamp, ">>,
+   <<" to_char(i.timestamp, 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') as timestamp, ">>,
    <<" p.display_name, p.profile_picture from ">>,
   ?INBOX_TABLE, <<" i ">>,
    <<" join ">>, ?PROFILES_TABLE, <<" p on p.user_id = i.peer_user ">>,
