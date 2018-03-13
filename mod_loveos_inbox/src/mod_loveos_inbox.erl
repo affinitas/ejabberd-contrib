@@ -139,10 +139,11 @@ process_message(Id, #jid{ luser = CurrentUser, lserver = CurrentServer } = _Curr
   % Peer = jlib:jid_to_string(jlib:jid_remove_resource(PeerJid)),
   Query = [
     <<"insert into ">>, ?INBOX_TABLE, <<" (id, username, peer_user, peer_server, message, direction, read) ">>,
-    <<"values ('">>, Id, <<"','">>, CurrentUser, <<"','">>, PeerUser, <<"','">>, PeerServer, <<"','">>, Message, <<"','">>, Direction, <<"', false)">>,
+    <<"values ('">>, ejabberd_sql:escape(Id), <<"','">>, ejabberd_sql:escape(CurrentUser), <<"','">>, ejabberd_sql:escape(PeerUser), <<"','">>, 
+    ejabberd_sql:escape(PeerServer), <<"','">>, ejabberd_sql:escape(Message), <<"','">>, Direction, <<"', false)">>,
     <<" on conflict on constraint c_loveos_inbox_v1_user_peer do update set ">>,
-    <<"id = '">>, Id, <<"', ">>,
-    <<"message = '">>, Message, <<"', ">>,
+    <<"id = '">>, ejabberd_sql:escape(Id), <<"', ">>,
+    <<"message = '">>, ejabberd_sql:escape(Message), <<"', ">>,
     <<"direction = '">>, Direction, <<"', ">>,
     <<"timestamp = now(), ">>,
     <<"read = false">>
@@ -158,7 +159,7 @@ process_message(Id, #jid{ luser = CurrentUser, lserver = CurrentServer } = _Curr
 process_update_read(#receipt_response{id = Id}, #jid{ lserver = Server }) -> 
   Query = [
     <<"update ">>, ?INBOX_TABLE, <<" set read = true where id = '">>,
-    Id,
+    ejabberd_sql:escape(Id),
     <<"'">>
   ],
   case ejabberd_sql:sql_query(Server, Query) of
