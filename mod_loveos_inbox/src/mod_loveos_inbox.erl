@@ -18,9 +18,9 @@
 -include("mod_mam.hrl").
 -include("xmpp_loveos_inbox.hrl").
 
--define(INBOX_TABLE, <<"loveos_inbox_v1">>).
--define(PROFILES_TABLE, <<"loveos_profiles_v2">>).
--define(EXCLUDED_TABLE, <<"loveos_excluded_v2">>).
+-define(INBOX_TABLE, <<"loveos_inbox">>).
+-define(PROFILES_TABLE, <<"loveos_profiles">>).
+-define(EXCLUDED_TABLE, <<"loveos_excluded">>).
 
 -export([start/2,
    stop/1,
