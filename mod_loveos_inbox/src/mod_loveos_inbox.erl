@@ -30,7 +30,8 @@
    ensure_sql/2,
    process_iq/1,
    user_send_packet/1,
-   user_receive_packet/1
+   user_receive_packet/1,
+   offline_message/1
 ]).
 
 %%% Module start/stop
@@ -40,6 +41,7 @@ start(Host, Opts) ->
   gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_INBOX, ?MODULE, process_iq, IQDisc),
   ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 85),
   ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, user_receive_packet, 85),
+  ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, offline_message, 50),
   xmpp:register_codec(xmpp_loveos_inbox),
   ensure_sql(Host).
 
@@ -47,6 +49,8 @@ stop(Host) ->
   gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_INBOX),
   gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_INBOX),
   ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 85),
+  ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, user_receive_packet, 85),
+  ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, offline_message, 50),
   xmpp:unregister_codec(xmpp_loveos_inbox),
   ok.
 
@@ -176,18 +180,24 @@ process_message(#message{id = Id, from = From, to = To, body = Body } = Message,
     false -> 
       BodyText = xmpp:get_text(Body),
       case Direction of 
-        <<"incoming">> -> process_message(Id, To, From, BodyText, <<"I">>);
-        <<"outgoing">> -> process_message(Id, From, To, BodyText, <<"O">>)
+        incoming -> process_message(Id, To, From, BodyText, <<"I">>);
+        outgoing -> process_message(Id, From, To, BodyText, <<"O">>)
       end
   end.
 
 process_packet({ #message{} = Message, _C2SState} = Input, Direction) ->
+  ?DEBUG("Processing packet ~p (direction: ~p)", [Message, Direction]),
   process_message(Message, Direction),
   Input;
 process_packet(Input, _Direction) ->
   Input.
 
 user_send_packet(Input) ->
-  process_packet(Input, <<"outgoing">>).
+  process_packet(Input, outgoing).
 user_receive_packet(Input) ->
-  process_packet(Input, <<"incoming">>).
+  process_packet(Input, incoming).
+offline_message({_Action, #message{} = Message} = Acc) ->
+  process_message(Message, incoming),
+  Acc;
+offline_message({_Action, _Pkt} = Acc) -> 
+  Acc.
