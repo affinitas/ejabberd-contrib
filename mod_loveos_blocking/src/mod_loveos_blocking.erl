@@ -19,7 +19,7 @@
 -include("ejabberd_sql_pt.hrl").
 -include("mod_mam.hrl").
 
--define(EXCLUDED_TABLE, <<"loveos_excluded_v1">>).
+-define(EXCLUDED_TABLE, <<"loveos_excluded">>).
 
 -export([
   start/2,
