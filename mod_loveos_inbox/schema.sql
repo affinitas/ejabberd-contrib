@@ -1,4 +1,4 @@
-CREATE TABLE loveos_inbox_v1 (
+CREATE TABLE loveos_inbox (
   id text not null,
   username text not null,
   peer_user text not null,
@@ -9,5 +9,5 @@ CREATE TABLE loveos_inbox_v1 (
   timestamp timestamp with time zone default now()
 );
 
-CREATE INDEX i_loveos_inbox_v1 ON loveos_inbox_v1 using btree (username);
-alter table loveos_inbox_v1 add constraint c_loveos_inbox_v1_user_peer unique(username, peer_user, peer_server);
+CREATE INDEX i_loveos_inbox ON loveos_inbox using btree (username);
+alter table loveos_inbox add constraint c_loveos_inbox_user_peer unique(username, peer_user, peer_server);
