@@ -29,9 +29,7 @@
    get_inbox/2,
    ensure_sql/2,
    process_iq/1,
-   user_send_packet/1,
-   user_receive_packet/1,
-   offline_message/1
+   store_mam_message/6
 ]).
 
 %%% Module start/stop
@@ -39,18 +37,14 @@
 start(Host, Opts) ->
   IQDisc = gen_mod:get_opt(iqdisc, Opts, fun gen_iq_handler:check_type/1, one_queue),             %% IQDisc is required for module to IQ handler to work
   gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_INBOX, ?MODULE, process_iq, IQDisc),
-  ejabberd_hooks:add(user_send_packet, Host, ?MODULE, user_send_packet, 85),
-  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, user_receive_packet, 85),
-  ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, offline_message, 50),
+  ejabberd_hooks:add(store_mam_message, Host, ?MODULE, store_mam_message, 86),
   xmpp:register_codec(xmpp_loveos_inbox),
   ensure_sql(Host).
 
 stop(Host) ->
   gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_INBOX),
   gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_INBOX),
-  ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, user_send_packet, 85),
-  ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, user_receive_packet, 85),
-  ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, offline_message, 50),
+  ejabberd_hooks:delete(store_mam_message, Host, ?MODULE, store_mam_message, 86),
   xmpp:unregister_codec(xmpp_loveos_inbox),
   ok.
 
@@ -185,19 +179,17 @@ process_message(#message{id = Id, from = From, to = To, body = Body } = Message,
       end
   end.
 
-process_packet({ #message{} = Message, _C2SState} = Input, Direction) ->
-  ?DEBUG("Processing packet ~p (direction: ~p)", [Message, Direction]),
+process_packet(#message{} = Message, Direction) ->
+  ?INFO_MSG("Processing packet ~p (direction: ~p)", [Message, Direction]),
   process_message(Message, Direction),
-  Input;
+  Message;
 process_packet(Input, _Direction) ->
+  ?INFO_MSG("Not processing packet ~p (direction: ~p)", [Input, _Direction]),
   Input.
 
-user_send_packet(Input) ->
-  process_packet(Input, outgoing).
-user_receive_packet(Input) ->
-  process_packet(Input, incoming).
-offline_message({_Action, #message{} = Message} = Acc) ->
-  process_message(Message, incoming),
-  Acc;
-offline_message({_Action, _Pkt} = Acc) -> 
-  Acc.
+store_mam_message(Pkt, _U, _S, _P, chat, send) -> 
+  ?INFO_MSG("store_mam_message ~p", [Pkt]),
+  process_packet(Pkt, outgoing);
+store_mam_message(Pkt, _U, _S, _P, chat, recv) -> 
+  ?INFO_MSG("store_mam_message ~p", [Pkt]),
+  process_packet(Pkt, incoming).
