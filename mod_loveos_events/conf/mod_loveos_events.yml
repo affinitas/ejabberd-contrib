@@ -1,0 +1,4 @@
+modules:
+  mod_loveos_events: 
+    service: https://notification.ejabberd/rest
+
