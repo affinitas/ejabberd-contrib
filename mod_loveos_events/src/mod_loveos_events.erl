@@ -100,13 +100,11 @@ send(Event, Host) ->
     "application/json", 
     Encoded
   },
-  ?INFO_MSG("-------------------", []),
   Response = try httpc:request(post, Request, [], []) 
     of R -> R
     catch E -> {error, E}
   end,
   ?INFO_MSG("HTTP response from ~p: ~p", [Service, Response]),
-  ?INFO_MSG("-------------------", []),
   case Response of
     {error, Reason} -> ?ERROR_MSG("Error in module ~p while sending a request to ~p: ~p", [?MODULE, Service, Reason]), ok;
     _ -> ok
@@ -116,7 +114,7 @@ process_packet(#message{id = Id, from = From, to = To, body = _Body } = Message,
   case xmpp:has_subtag(Message, #receipt_response{}) of
     true ->
       Ack = xmpp:get_subtag(Message, #receipt_response{}),
-      AckId = Ack#message.id,
+      AckId = Ack#receipt_response.id,
       send(#event_ack{id = AckId}, Host);
     false -> 
 %      BodyText = xmpp:get_text(Body),
