@@ -38,7 +38,6 @@
 ]).
 
 start(Host, _Opts) ->
-  ?INFO_MSG("Starting with service: ~p", [get_service(Host)]),
   ejabberd_hooks:add(store_mam_message, Host, ?MODULE, store_mam_message, 91),
   ok.
 
@@ -55,17 +54,22 @@ reload(Host, NewOpts, OldOpts) ->
       ok
     end.
 
-mod_opt_type(service) ->
+mod_opt_type(service_ack) ->
     fun (A) when is_atom(A) -> A end;
-
+mod_opt_type(service_msg) ->
+    fun (A) when is_atom(A) -> A end;
 mod_opt_type(_) ->
-    [service].
+    [service_msg, service_ack].
 
 depends(_,_) ->
 	[].
 
-get_service(Host) -> 
-  try_get_option(Host, service, <<"">>).
+get_service(#event_msg{}, Host) -> 
+  try_get_option(Host, service_msg, <<"">>);
+get_service(#event_ack{}, Host) ->
+  try_get_option(Host, service_ack, <<"">>);
+get_service(_, Host) ->
+  throw({ incorrect_service_kind, ?MODULE, Host }).
 
 try_get_option(Host, OptionName, DefaultValue) ->
     case gen_mod:is_loaded(Host, ?MODULE) of
@@ -87,24 +91,35 @@ encode(#event_ack{id = Id}) -> jiffy:encode(
   ]} 
 ).
 
-send(Event) -> 
-  ?INFO_MSG("Send JSON: ~p", [encode(Event)]),
-  ok.
+send(Event, Host) -> 
+  Encoded = encode(Event),
+  Service = get_service(Event, Host),
+  Request = {
+    Service, 
+    [], 
+    "application/json", 
+    Encoded
+  },
+  Response = httpc:request(post, Request, [], []),
+  case Response of
+    {error, Reason} -> ?ERROR_MSG("Error in module ~p while sending a request to ~p: ~p", [?MODULE, Service, Reason]), ok;
+    _ -> ok
+  end.
 
-process_packet(#message{id = Id, from = From, to = To, body = _Body } = Message) ->
+process_packet(#message{id = Id, from = From, to = To, body = _Body } = Message, Host) ->
   case xmpp:has_subtag(Message, #receipt_response{}) of
     true ->
       Ack = xmpp:get_subtag(Message, #receipt_response{}),
       AckId = Ack#message.id,
-      send(#event_ack{id = AckId});
+      send(#event_ack{id = AckId}, Host);
     false -> 
 %      BodyText = xmpp:get_text(Body),
-      send(#event_msg{ id = Id, from = From, to = To })
+      send(#event_msg{ id = Id, from = From, to = To }, Host)
   end,
   Message;
-process_packet(Pkt) -> Pkt.
+process_packet(Pkt, _Host) -> Pkt.
 
 
-store_mam_message(Pkt, _U, _S, _P, chat, recv) -> 
-  process_packet(Pkt);
+store_mam_message(Pkt, _U, Host, _P, chat, recv) -> 
+  process_packet(Pkt, Host);
 store_mam_message(Pkt, _U, _S, _P, _, _) -> Pkt.
