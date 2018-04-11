@@ -93,7 +93,7 @@ encode(#event_ack{id = Id}) -> jiffy:encode(
 
 send(Event, Host) -> 
   Encoded = encode(Event),
-  Service = get_service(Event, Host),
+  Service = atom_to_list(get_service(Event, Host)),
   Request = {
     Service, 
     [], 
@@ -101,6 +101,7 @@ send(Event, Host) ->
     Encoded
   },
   Response = httpc:request(post, Request, [], []),
+  ?INFO_MSG("HTTP response from ~p: ~p", [Service, Response]),
   case Response of
     {error, Reason} -> ?ERROR_MSG("Error in module ~p while sending a request to ~p: ~p", [?MODULE, Service, Reason]), ok;
     _ -> ok
