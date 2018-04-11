@@ -1,5 +1,5 @@
 modules:
   mod_loveos_events: 
-    service_msg: https://loveos-chat-rabbitmq-connector.loveos/message/sent
-    service_ack: https://loveos-chat-rabbitmq-connector.loveos/message/read
+    service_msg: http://loveos-chat-rabbitmq-connector.loveos/message/sent
+    service_ack: http://loveos-chat-rabbitmq-connector.loveos/message/read
 
