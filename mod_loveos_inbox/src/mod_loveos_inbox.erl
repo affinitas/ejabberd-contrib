@@ -139,7 +139,7 @@ process_message(Id, #jid{ luser = CurrentUser, lserver = CurrentServer } = _Curr
     <<"insert into ">>, ?INBOX_TABLE, <<" (id, username, peer_user, peer_server, message, direction, read) ">>,
     <<"values ('">>, ejabberd_sql:escape(Id), <<"','">>, ejabberd_sql:escape(CurrentUser), <<"','">>, ejabberd_sql:escape(PeerUser), <<"','">>, 
     ejabberd_sql:escape(PeerServer), <<"','">>, ejabberd_sql:escape(Message), <<"','">>, Direction, <<"', false)">>,
-    <<" on conflict on constraint c_loveos_inbox_v1_user_peer do update set ">>,
+    <<" on conflict on constraint c_loveos_inbox_user_peer do update set ">>,
     <<"id = '">>, ejabberd_sql:escape(Id), <<"', ">>,
     <<"message = '">>, ejabberd_sql:escape(Message), <<"', ">>,
     <<"direction = '">>, Direction, <<"', ">>,
