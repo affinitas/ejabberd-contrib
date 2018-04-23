@@ -41,7 +41,7 @@ start(Host, _Opts) ->
   ejabberd_hooks:add(store_mam_message, Host, ?MODULE, store_mam_message, 91),
   ok.
 
-stop(Host) -> 
+stop(Host) ->
   ejabberd_hooks:delete(store_mam_message, Host, ?MODULE, store_mam_message, 91),
   ok.
 
@@ -64,7 +64,7 @@ mod_opt_type(_) ->
 depends(_,_) ->
 	[].
 
-get_service(#event_msg{}, Host) -> 
+get_service(#event_msg{}, Host) ->
   try_get_option(Host, service_msg, <<"">>);
 get_service(#event_ack{}, Host) ->
   try_get_option(Host, service_ack, <<"">>);
@@ -83,24 +83,26 @@ encode(#event_msg{id = Id, from = From, to = To }) -> jiffy:encode(
     {messageId, Id},
     {senderId, From#jid.user},
     {receiverId, To#jid.user}
-  ]} 
+  ]}
 );
-encode(#event_ack{id = Id}) -> jiffy:encode(
+encode(#event_ack{id = Id, from = From, to = To }) -> jiffy:encode(
   {[
-    {messageId, Id}
-  ]} 
+    {messageId, Id},
+    {senderId, From#jid.user},
+    {receiverId, To#jid.user}
+  ]}
 ).
 
-send(Event, Host) -> 
+send(Event, Host) ->
   Encoded = encode(Event),
   Service = atom_to_list(get_service(Event, Host)),
   Request = {
-    Service, 
-    [], 
-    "application/json", 
+    Service,
+    [],
+    "application/json",
     Encoded
   },
-  Response = try httpc:request(post, Request, [], []) 
+  Response = try httpc:request(post, Request, [], [])
     of R -> R
     catch E -> {error, E}
   end,
@@ -115,8 +117,8 @@ process_packet(#message{id = Id, from = From, to = To, body = _Body } = Message,
     true ->
       Ack = xmpp:get_subtag(Message, #receipt_response{}),
       AckId = Ack#receipt_response.id,
-      send(#event_ack{id = AckId}, Host);
-    false -> 
+      send(#event_ack{id = AckId, from = From, to = To}, Host);
+    false ->
 %      BodyText = xmpp:get_text(Body),
       send(#event_msg{ id = Id, from = From, to = To }, Host)
   end,
@@ -124,6 +126,6 @@ process_packet(#message{id = Id, from = From, to = To, body = _Body } = Message,
 process_packet(Pkt, _Host) -> Pkt.
 
 
-store_mam_message(Pkt, _U, Host, _P, chat, recv) -> 
+store_mam_message(Pkt, _U, Host, _P, chat, recv) ->
   process_packet(Pkt, Host);
 store_mam_message(Pkt, _U, _S, _P, _, _) -> Pkt.
