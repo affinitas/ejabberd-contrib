@@ -114,11 +114,11 @@ send(Event, Host) ->
 
 process_packet(#message{id = Id, from = From, to = To, body = _Body } = Message, Host) ->
   case xmpp:has_subtag(Message, #receipt_response{}) of
-    true ->
+    true -> % Receipt of message
       Ack = xmpp:get_subtag(Message, #receipt_response{}),
       AckId = Ack#receipt_response.id,
       send(#event_ack{id = AckId, from = From, to = To}, Host);
-    false ->
+    false -> % New message
 %      BodyText = xmpp:get_text(Body),
       send(#event_msg{ id = Id, from = From, to = To }, Host)
   end,
