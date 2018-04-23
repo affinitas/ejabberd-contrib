@@ -25,7 +25,9 @@
   to :: jid:jid()
 }).
 -record(event_ack, {
-  id = <<>> :: binary()
+  id = <<>> :: binary(),
+  from :: jid:jid(),
+  to :: jid:jid()
 }).
 
 -export([
