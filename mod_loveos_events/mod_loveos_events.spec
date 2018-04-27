@@ -1,0 +1,5 @@
+author: "Igor Dultsev <igor.dultsev@affinitas.de>"
+category: "command"
+summary: "Sends events to notification service"
+home: "https://github.com/affinitas/ejabberd-contrib/tree/beta/"
+url: "https://github.com/affinitas/ejabberd-contrib/archive/beta.zip"
