@@ -114,7 +114,7 @@ process_profile_iq(#iq{type = get, from = #jid{luser = _User, lserver = Host}} =
     true -> 
       User = get_profile_user(xmpp:get_subtag(IQ, #profile_query{})),
       Profile = get_profile(Host, User),
-      xmpp:make_iq_result(IQ, #profile_query{ user = User, items = Profile })
+      xmpp:make_iq_result(IQ, #profile_query{ user = User, items = Profile });
     false -> 
       error
   end.
