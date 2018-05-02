@@ -20,4 +20,10 @@
 -record(inbox_query, {items = [] :: [#inbox_item{}]}).
 -type inbox_query() :: #inbox_query{}.
 
+-record(profile_query, {user = <<>> :: binary(),
+                        items = [] :: [#inbox_item{}]}).
+-type profile_query() :: #profile_query{}.
+
+
 -define(NS_INBOX, <<"jabber:iq:inbox">>).
+-define(NS_INBOX_PROFILE, <<"jabber:iq:profile">>).

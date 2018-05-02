@@ -5,6 +5,9 @@
 
 -compile(export_all).
 
+do_decode(<<"query">>, <<"jabber:iq:profile">>, El,
+	  Opts) ->
+    decode_profile_query(<<"jabber:iq:profile">>, Opts, El);
 do_decode(<<"query">>, <<"jabber:iq:inbox">>, El,
 	  Opts) ->
     decode_inbox_query(<<"jabber:iq:inbox">>, Opts, El);
@@ -24,7 +27,8 @@ do_decode(Name, XMLNS, _, _) ->
     erlang:error({xmpp_codec, {unknown_tag, Name, XMLNS}}).
 
 tags() ->
-    [{<<"query">>, <<"jabber:iq:inbox">>},
+    [{<<"query">>, <<"jabber:iq:profile">>},
+     {<<"query">>, <<"jabber:iq:inbox">>},
      {<<"item">>, <<"jabber:iq:inbox">>},
      {<<"last-message">>, <<"jabber:iq:inbox">>},
      {<<"user">>, <<"jabber:iq:inbox">>}].
@@ -38,31 +42,107 @@ do_encode({inbox_last_message, _, _, _, _, _} =
 do_encode({inbox_item, _, _} = Item, TopXMLNS) ->
     encode_inbox_item(Item, TopXMLNS);
 do_encode({inbox_query, _} = Query, TopXMLNS) ->
-    encode_inbox_query(Query, TopXMLNS).
+    encode_inbox_query(Query, TopXMLNS);
+do_encode({profile_query, _, _} = Query, TopXMLNS) ->
+    encode_profile_query(Query, TopXMLNS).
 
 do_get_name({inbox_item, _, _}) -> <<"item">>;
 do_get_name({inbox_last_message, _, _, _, _, _}) ->
     <<"last-message">>;
 do_get_name({inbox_query, _}) -> <<"query">>;
-do_get_name({inbox_user, _, _, _}) -> <<"user">>.
+do_get_name({inbox_user, _, _, _}) -> <<"user">>;
+do_get_name({profile_query, _, _}) -> <<"query">>.
 
 do_get_ns({inbox_item, _, _}) -> <<"jabber:iq:inbox">>;
 do_get_ns({inbox_last_message, _, _, _, _, _}) ->
     <<"jabber:iq:inbox">>;
 do_get_ns({inbox_query, _}) -> <<"jabber:iq:inbox">>;
 do_get_ns({inbox_user, _, _, _}) ->
-    <<"jabber:iq:inbox">>.
+    <<"jabber:iq:inbox">>;
+do_get_ns({profile_query, _, _}) ->
+    <<"jabber:iq:profile">>.
 
 pp(inbox_user, 3) -> [jid, display_name, picture_url];
 pp(inbox_last_message, 5) ->
     [id, timestamp, text, direction, read];
 pp(inbox_item, 2) -> [user, last_message];
 pp(inbox_query, 1) -> [items];
+pp(profile_query, 2) -> [user, items];
 pp(_, _) -> no.
 
 records() ->
     [{inbox_user, 3}, {inbox_last_message, 5},
-     {inbox_item, 2}, {inbox_query, 1}].
+     {inbox_item, 2}, {inbox_query, 1}, {profile_query, 2}].
+
+decode_profile_query(__TopXMLNS, __Opts,
+		     {xmlel, <<"query">>, _attrs, _els}) ->
+    Items = decode_profile_query_els(__TopXMLNS, __Opts,
+				     _els, []),
+    User = decode_profile_query_attrs(__TopXMLNS, _attrs,
+				      undefined),
+    {profile_query, User, Items}.
+
+decode_profile_query_els(__TopXMLNS, __Opts, [],
+			 Items) ->
+    lists:reverse(Items);
+decode_profile_query_els(__TopXMLNS, __Opts,
+			 [{xmlel, <<"item">>, _attrs, _} = _el | _els],
+			 Items) ->
+    case xmpp_codec:get_attr(<<"xmlns">>, _attrs,
+			     __TopXMLNS)
+	of
+      <<"jabber:iq:inbox">> ->
+	  decode_profile_query_els(__TopXMLNS, __Opts, _els,
+				   [decode_inbox_item(<<"jabber:iq:inbox">>,
+						      __Opts, _el)
+				    | Items]);
+      _ ->
+	  decode_profile_query_els(__TopXMLNS, __Opts, _els,
+				   Items)
+    end;
+decode_profile_query_els(__TopXMLNS, __Opts, [_ | _els],
+			 Items) ->
+    decode_profile_query_els(__TopXMLNS, __Opts, _els,
+			     Items).
+
+decode_profile_query_attrs(__TopXMLNS,
+			   [{<<"user">>, _val} | _attrs], _User) ->
+    decode_profile_query_attrs(__TopXMLNS, _attrs, _val);
+decode_profile_query_attrs(__TopXMLNS, [_ | _attrs],
+			   User) ->
+    decode_profile_query_attrs(__TopXMLNS, _attrs, User);
+decode_profile_query_attrs(__TopXMLNS, [], User) ->
+    decode_profile_query_attr_user(__TopXMLNS, User).
+
+encode_profile_query({profile_query, User, Items},
+		     __TopXMLNS) ->
+    __NewTopXMLNS =
+	xmpp_codec:choose_top_xmlns(<<"jabber:iq:profile">>, [],
+				    __TopXMLNS),
+    _els =
+	lists:reverse('encode_profile_query_$items'(Items,
+						    __NewTopXMLNS, [])),
+    _attrs = encode_profile_query_attr_user(User,
+					    xmpp_codec:enc_xmlns_attrs(__NewTopXMLNS,
+								       __TopXMLNS)),
+    {xmlel, <<"query">>, _attrs, _els}.
+
+'encode_profile_query_$items'([], __TopXMLNS, _acc) ->
+    _acc;
+'encode_profile_query_$items'([Items | _els],
+			      __TopXMLNS, _acc) ->
+    'encode_profile_query_$items'(_els, __TopXMLNS,
+				  [encode_inbox_item(Items, __TopXMLNS)
+				   | _acc]).
+
+decode_profile_query_attr_user(__TopXMLNS, undefined) ->
+    erlang:error({xmpp_codec,
+		  {missing_attr, <<"user">>, <<"query">>, __TopXMLNS}});
+decode_profile_query_attr_user(__TopXMLNS, _val) ->
+    _val.
+
+encode_profile_query_attr_user(_val, _acc) ->
+    [{<<"user">>, _val} | _acc].
 
 decode_inbox_query(__TopXMLNS, __Opts,
 		   {xmlel, <<"query">>, _attrs, _els}) ->
