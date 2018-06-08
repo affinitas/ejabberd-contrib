@@ -41,3 +41,13 @@
             result = {inbox_query, '$items'},
             attrs = [],
             refs = [#ref{name = inbox_item, label = '$items'}]}).
+
+-xml(profile_query,
+      #elem{name = <<"query">>,
+            xmlns = <<"jabber:iq:profile">>,
+            module = xmpp_loveos_inbox,
+            result = { profile_query, '$user', '$items' },
+            attrs = [
+                  #attr{name = <<"user">>, required = true}
+            ],
+            refs = [#ref{name = inbox_item, label = '$items'}]}).

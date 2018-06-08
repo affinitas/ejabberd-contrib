@@ -23,43 +23,45 @@
 -define(EXCLUDED_TABLE, <<"loveos_excluded">>).
 
 -export([start/2,
-   stop/1,
-   reload/3,
-   depends/2,
-   get_inbox/2,
-   ensure_sql/2,
-   process_iq/1,
-   store_mam_message/6
+  stop/1,
+  reload/3,
+  depends/2,
+  get_inbox/2,
+  ensure_sql/2,
+  process_inbox_iq/1,
+  process_profile_iq/1,
+  store_mam_message/6
 ]).
 
 %%% Module start/stop
 
 start(Host, Opts) ->
   IQDisc = gen_mod:get_opt(iqdisc, Opts, fun gen_iq_handler:check_type/1, one_queue),             %% IQDisc is required for module to IQ handler to work
-  gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_INBOX, ?MODULE, process_iq, IQDisc),
+  gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_INBOX, ?MODULE, process_inbox_iq, IQDisc),
+  gen_iq_handler:add_iq_handler(ejabberd_sm, Host, ?NS_INBOX_PROFILE, ?MODULE, process_profile_iq, IQDisc),
   ejabberd_hooks:add(store_mam_message, Host, ?MODULE, store_mam_message, 86),
   xmpp:register_codec(xmpp_loveos_inbox),
   ensure_sql(Host).
 
 stop(Host) ->
-  gen_iq_handler:remove_iq_handler(ejabberd_local, Host, ?NS_INBOX),
   gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_INBOX),
+  gen_iq_handler:remove_iq_handler(ejabberd_sm, Host, ?NS_INBOX_PROFILE),
   ejabberd_hooks:delete(store_mam_message, Host, ?MODULE, store_mam_message, 86),
   xmpp:unregister_codec(xmpp_loveos_inbox),
   ok.
 
 depends(_Host, _Opts) ->
-    [].
+  [].
 
 reload(Host, NewOpts, OldOpts) ->
-    xmpp:register_codec(inbox_query),
-    NewMod = gen_mod:db_mod(Host, NewOpts, ?MODULE),
-    OldMod = gen_mod:db_mod(Host, OldOpts, ?MODULE),
-    if NewMod /= OldMod ->
-      NewMod:init(Host, NewOpts);
-        true ->
-      ok
-    end.
+  xmpp:register_codec(inbox_query),
+  NewMod = gen_mod:db_mod(Host, NewOpts, ?MODULE),
+  OldMod = gen_mod:db_mod(Host, OldOpts, ?MODULE),
+  if NewMod /= OldMod ->
+    NewMod:init(Host, NewOpts);
+      true ->
+    ok
+  end.
 
 % This module can only be run on SQL-type DBs
 % Also we are checking that tables required for this module are available
@@ -76,6 +78,45 @@ check_table_exists(Host, Table) ->
   case SqlResult of
     {selected, _Columns, [[Table]]} -> ok;
     _ -> erlang:error(iolist_to_binary(io_lib:format("Table doesn't exist: ~p", [Table])))
+  end.
+
+% Process the following iq: <iq from="jid@server" type="get"><query xmlns="jabber:iq:profile" user="user-uuid" /></iq>
+
+query_profile(User) ->
+  [<<"select user_id, display_name, profile_picture from ">>,
+   ?PROFILES_TABLE,
+   <<" where user_id = '">>, User, <<"'">>].
+
+make_profile_element(User, Host, DisplayName, ProfilePicture) ->
+  #inbox_item {
+    user = #inbox_user {
+      jid = jid:make(User, Host), % Needs to be fixed for multi-brand
+      display_name = DisplayName,  
+      picture_url = ProfilePicture
+    }
+  }.
+
+get_profile(Host, User) ->
+  Query = query_profile(User),
+  QueryResult = ejabberd_sql:sql_query(Host, Query),
+  case QueryResult of
+    {selected, _Columns, Rows} when is_list(Rows) ->
+      [ make_profile_element(ProfileUser, Host, DisplayName, ProfilePicture) || [ ProfileUser, DisplayName, ProfilePicture ] <- Rows ];
+    Err -> 
+      ?ERROR_MSG("Error getting profile: ~p", [Err]),
+      Err
+  end.
+
+get_profile_user(#profile_query{ user = User }) -> User.
+
+process_profile_iq(#iq{type = get, from = #jid{luser = _User, lserver = Host}} = IQ) ->
+  case xmpp:has_subtag(IQ, #profile_query{}) of
+    true -> 
+      User = get_profile_user(xmpp:get_subtag(IQ, #profile_query{})),
+      Profile = get_profile(Host, User),
+      xmpp:make_iq_result(IQ, #profile_query{ user = User, items = Profile });
+    false -> 
+      error
   end.
 
 % Process the following iq: <iq from="jid@server" type="get"><query xmlns="jabber:iq:inbox" /></iq>
@@ -125,9 +166,8 @@ get_inbox(Host, User) ->
       Err
   end.
 
-process_iq(#iq{type = get, from = #jid{luser = User, lserver = Host}} = IQ) ->
-    xmpp:make_iq_result(IQ, #inbox_query{ items = get_inbox(Host, User)}).
-    
+process_inbox_iq(#iq{type = get, from = #jid{luser = User, lserver = Host}} = IQ) ->
+  xmpp:make_iq_result(IQ, #inbox_query{ items = get_inbox(Host, User)}).
 
 %%% Process messages
 
