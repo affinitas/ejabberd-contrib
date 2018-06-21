@@ -1,5 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author Igor Dultsev
+%%% @author Rowena Wodrich
 %%% ©copyright (C) 2017-2018, Affinitas.de
 %%% @doc
 %%%
@@ -9,7 +10,7 @@
 %%%-------------------------------------------------------------------
 
 -module(mod_loveos_events).
--author("Igor Dultsev").
+-author("Igor Dultsev, Rowena Wodrich").
 
 -behavior(gen_mod).
 -include("ejabberd.hrl").
@@ -30,18 +31,24 @@
   to :: jid:jid()
 }).
 
+-define(PROFILES_TABLE, <<"loveos_profiles">>).
+
 -export([
   start/2,
   stop/1,
   reload/3,
 	mod_opt_type/1,
   depends/2,
-  store_mam_message/6
+  store_mam_message/6,
+  get_brand_id/2,
+  ensure_sql/2
 ]).
+
+% Module lifecycle
 
 start(Host, _Opts) ->
   ejabberd_hooks:add(store_mam_message, Host, ?MODULE, store_mam_message, 91),
-  ok.
+  ensure_sql(Host).
 
 stop(Host) ->
   ejabberd_hooks:delete(store_mam_message, Host, ?MODULE, store_mam_message, 91),
@@ -66,6 +73,25 @@ mod_opt_type(_) ->
 depends(_,_) ->
 	[].
 
+
+% This module can only be run on SQL-type DBs
+% Also we are checking that tables required for this module are available
+
+ensure_sql(Host) -> ensure_sql(Host, gen_mod:db_type(Host, mod_mam)).
+ensure_sql(Host, sql) -> 
+  check_table_exists(Host, ?PROFILES_TABLE);
+ensure_sql(_Host, DbType) -> 
+  erlang:error(iolist_to_binary(io_lib:format("Unsupported backend: ~p", [DbType]))).
+
+check_table_exists(Host, Table) ->
+  SqlResult = ejabberd_sql:sql_query(Host, [<<"SELECT to_regclass('">>, Table, <<"')">>]),
+  case SqlResult of
+    {selected, _Columns, [[Table]]} -> ok;
+    _ -> erlang:error(iolist_to_binary(io_lib:format("Table doesn't exist: ~p", [Table])))
+  end.
+
+
+
 get_service(#event_msg{}, Host) ->
   try_get_option(Host, service_msg, <<"">>);
 get_service(#event_ack{}, Host) ->
@@ -80,23 +106,51 @@ try_get_option(Host, OptionName, DefaultValue) ->
     end,
     gen_mod:get_module_opt(Host, ?MODULE, OptionName, fun(I) -> I end, DefaultValue).
 
-encode(#event_msg{id = Id, from = From, to = To }) -> jiffy:encode(
-  {[
-    {messageId, Id},
-    {senderId, From#jid.user},
-    {receiverId, To#jid.user}
-  ]}
+
+
+make_query(User) ->
+  [<<"select brand_id FROM ">>, ?PROFILES_TABLE ,<<" WHERE user_id='">> , User , <<"'">>].
+
+get_brand_id(Host, User) ->
+  Query = make_query(User),
+  QueryResult = ejabberd_sql:sql_query(Host, Query),
+  case QueryResult of
+    {selected, _Columns, [[ BrandId ]]} -> BrandId;
+    Err ->
+      ?ERROR_MSG("Error getting brand_id for ~p: ~p", [User, Err]),
+      Err
+  end.
+
+encode(#event_msg{id = Id, from = From, to = To }, Host) ->
+  jiffy:encode(
+    {[
+      {messageId, Id},
+      {sender, {[
+        { userId, From#jid.user },
+        { brandId, get_brand_id(Host, From#jid.user) }
+      ]}},
+      {receiver, {[
+        { userId, To#jid.user },
+        { brandId, get_brand_id(Host, To#jid.user)}
+      ]}}
+    ]}
 );
-encode(#event_ack{id = Id, from = From, to = To }) -> jiffy:encode(
+encode(#event_ack{id = Id, from = From, to = To }, Host) -> jiffy:encode(
   {[
     {messageId, Id},
-    {senderId, From#jid.user},
-    {receiverId, To#jid.user}
+    {sender, {[
+      { userId, From#jid.user },
+      { brandId, get_brand_id(Host, From#jid.user) }
+    ]}},
+    {receiver, {[
+      {userId, To#jid.user },
+      {brandId, get_brand_id(Host, To#jid.user) }
+    ]}}
   ]}
 ).
 
 send(Event, Host) ->
-  Encoded = encode(Event),
+  Encoded = encode(Event, Host),
   Service = atom_to_list(get_service(Event, Host)),
   Request = {
     Service,
