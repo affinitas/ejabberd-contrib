@@ -20,6 +20,7 @@
 -include("mod_mam.hrl").
 
 -define(EXCLUDED_TABLE, <<"loveos_excluded">>).
+-define(PROFILES_TABLE, <<"loveos_profiles">>).
 
 -export([
   start/2,
@@ -68,16 +69,42 @@ depends(_,_) ->
 query_block(User, Excluded) ->
   [<< "select (excluded_users::jsonb ? '" >>, Excluded, << "') from " >>, ?EXCLUDED_TABLE, << " where user_id='" >>, User, << "';" >>].
 
+is_user_blocked(Host, User, Excluded) ->
+  Query = query_block(User, Excluded),
+  QueryResult = ejabberd_sql:sql_query(Host, Query),
+  case QueryResult of
+    {selected, _Columns, [[<<"t">>]]} -> true;
+    {selected, _Columns, _Result} -> false;
+    Err ->
+      ?ERROR_MSG("Error getting excluded for ~p: ~p", [User, Err]),
+      Err
+  end.
+
+query_profiles(User) ->
+  [<<"select is_fraud FROM ">>, ?PROFILES_TABLE ,<<" WHERE user_id='">> , User , <<"'">>].
+
+is_user_fraud(Host, User) ->
+  Query = query_profiles(User),
+  QueryResult = ejabberd_sql:sql_query(Host, Query),
+  case QueryResult of
+    {selected, _Columns, [[ <<"t">> ]]} -> true;
+    {selected, _Columns, [[ <<"f">> ]]} -> false;
+    Err ->
+      ?ERROR_MSG("Error getting is_fraud for ~p: ~p", [User, Err]),
+      Err
+  end.
 
 filter_packet(drop) -> drop;
-
 filter_packet(#message{ from = #jid{ lserver = Host, luser = User }, to = #jid{ luser = Excluded}} = Input) ->
-  % ?INFO_MSG("Filtering <<<< ~p -> ~p >>> ~n", [User, Excluded]),
-  QResult = ejabberd_sql:sql_query(Host, query_block(User, Excluded)),
-
-  case QResult of
-    {selected, _Columns, [[<<"t">>]]} -> drop;
-    _ -> Input
+  UserFraud = is_user_fraud(Host, User),
+  if 
+    UserFraud -> drop;
+    true -> 
+      UserBlocked = is_user_blocked(Host, User, Excluded),
+      if 
+        UserBlocked -> drop;
+        true -> Input
+      end
   end;
-
 filter_packet(Input) -> Input.
+
