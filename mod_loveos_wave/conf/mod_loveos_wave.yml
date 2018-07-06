@@ -1,0 +1,7 @@
+modules:
+  mod_loveos_wave:
+    brands:
+      - name: "chattery"
+        jid_host: "beta.loveos.io"
+      - name: "adventist"
+        jid_host: "beta.loveos.io"
