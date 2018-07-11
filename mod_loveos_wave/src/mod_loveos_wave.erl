@@ -25,13 +25,13 @@
   start/2,
   stop/1,
   depends/2,
-	process/2,
+  process/2,
   mod_opt_type/1, 
   mod_options/1,
   get_jid_host/2,
   get_jid/3,
-  post_wave/2,
-  try_post_wave/2
+  post_wave/3,
+  try_post_wave/3
 ]).
 
 start(_Host, _Opts) -> 
