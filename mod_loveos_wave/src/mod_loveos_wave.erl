@@ -51,11 +51,20 @@ process([], #request{method = 'POST', data = Data, host = Host}) ->
   try
     Decoded = jiffy:decode(Data),
     case Decoded of
-      {[{<<"sender">>,{[{<<"userId">>, SenderId}, {<<"brandId">>, SenderBrand}]}},
-        {<<"receiver">>,{[{<<"userId">>, ReceiverId}, {<<"brandId">>, ReceiverBrand}]}}]} ->
+      {[
+	{<<"messageId">>, MessageId},
+	{<<"sender">>, {[
+	  {<<"userId">>, SenderId}, 
+	  {<<"brandId">>, SenderBrand}
+        ]}},
+        {<<"receiver">>,{[
+	  {<<"userId">>, ReceiverId}, 
+	  {<<"brandId">>, ReceiverBrand}
+	]}}
+      ]} ->
           From = get_jid(Host, SenderId, SenderBrand),
           To = get_jid(Host, ReceiverId, ReceiverBrand),
-          try_post_wave(From, To);
+          try_post_wave(MessageId, From, To);
       Anything ->
         ?INFO_MSG("Cannot decode data: ~p", [Anything]),
         {400, [], <<"incorrect_request">>}
@@ -83,18 +92,18 @@ get_jid(Host, User, Brand) ->
   ?INFO_MSG("User: ~p @ ~p [~p]", [User, UserHost, Brand]),
   jid:make(User, UserHost).
 
-try_post_wave(From, To) ->
+try_post_wave(Id, From, To) ->
   case From of
     error -> {404, [], <<"incorrect_sender_brand_id">>};
     _ -> case To of
       error -> {404, [], <<"incorrect_receiver_brand_id">>};
-      _ -> post_wave(From, To)
+      _ -> post_wave(Id, From, To)
     end
   end.
 
-post_wave(From, To) ->
+post_wave(Id, From, To) ->
   Pkt = #message{
-    id = randoms:get_string(),
+    id = Id,
     type = chat, 
     from = From, 
     to = To,
